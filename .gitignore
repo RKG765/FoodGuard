@@ -1,0 +1,55 @@
+# =========================
+# DATASETS (DO NOT COMMIT)
+# =========================
+food_101/
+food_image_dataset/
+indian_food_data/
+ai_generated/
+
+# =========================
+# GENERATED FILES
+# =========================
+generation_metadata.json
+generation_checkpoint.json
+
+# =========================
+# CSV / DATA INDEX
+# =========================
+dataset_index.csv
+
+# =========================
+# PYTHON CACHE
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =========================
+# ENV / SECRETS
+# =========================
+.env
+.env.*
+config/*.json
+config/*.yaml
+config/*.yml
+
+# =========================
+# VIRTUAL ENV
+# =========================
+venv/
+.venv/
+env/
+
+# =========================
+# OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# LOGS
+# =========================
+*.log
+
+scripts/generate_ai_images.py

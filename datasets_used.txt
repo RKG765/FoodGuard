@@ -1,0 +1,11 @@
+food image dataset
+
+food1o1
+
+Indian food 
+
+source : kaggle
+
+NOTE: food image dataset will include food1o1 you can skip this.
+
+
