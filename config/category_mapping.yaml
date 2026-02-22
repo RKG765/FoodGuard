@@ -1,0 +1,167 @@
+# Category Mapping for Food Datasets
+# Maps dataset classes to 6 unified categories:
+# indian, fast_food, street_food, desserts, beverages, continental
+
+food_101:
+  # Indian
+  samosa: indian
+  
+  # Fast Food
+  pizza: fast_food
+  hamburger: fast_food
+  hot_dog: fast_food
+  french_fries: fast_food
+  chicken_wings: fast_food
+  fried_rice: fast_food
+  
+  # Street Food
+  tacos: street_food
+  nachos: street_food
+  gyoza: street_food
+  spring_rolls: street_food
+  falafel: street_food
+  
+  # Desserts
+  apple_pie: desserts
+  baklava: desserts
+  beignets: desserts
+  bread_pudding: desserts
+  cannoli: desserts
+  carrot_cake: desserts
+  cheese_cake: desserts
+  chocolate_cake: desserts
+  chocolate_mousse: desserts
+  churros: desserts
+  creme_brulee: desserts
+  cup_cakes: desserts
+  donuts: desserts
+  frozen_yogurt: desserts
+  ice_cream: desserts
+  macarons: desserts
+  pancakes: desserts
+  panna_cotta: desserts
+  red_velvet_cake: desserts
+  strawberry_shortcake: desserts
+  tiramisu: desserts
+  waffles: desserts
+  
+  # Beverages
+  cappuccino: beverages
+  espresso: beverages
+  hot_and_sour_soup: beverages
+  
+  # Continental / Main dishes (default for most)
+  baby_back_ribs: continental
+  beef_carpaccio: continental
+  beef_tartare: continental
+  bibimbap: continental
+  breakfast_burrito: continental
+  bruschetta: continental
+  caesar_salad: continental
+  caprese_salad: continental
+  chicken_curry: continental
+  chicken_quesadilla: continental
+  clam_chowder: continental
+  club_sandwich: continental
+  crab_cakes: continental
+  croque_madame: continental
+  deviled_eggs: continental
+  dumplings: continental
+  edamame: continental
+  eggs_benedict: continental
+  escargots: continental
+  filet_mignon: continental
+  fish_and_chips: continental
+  foie_gras: continental
+  french_onion_soup: continental
+  french_toast: continental
+  fried_calamari: continental
+  garlic_bread: continental
+  gnocchi: continental
+  greek_salad: continental
+  grilled_cheese_sandwich: continental
+  grilled_salmon: continental
+  guacamole: continental
+  huevos_rancheros: continental
+  hummus: continental
+  lasagna: continental
+  lobster_bisque: continental
+  lobster_roll_sandwich: continental
+  macaroni_and_cheese: continental
+  miso_soup: continental
+  mussels: continental
+  omelette: continental
+  onion_rings: continental
+  oysters: continental
+  pad_thai: continental
+  paella: continental
+  peking_duck: continental
+  pho: continental
+  pork_chop: continental
+  poutine: continental
+  prime_rib: continental
+  pulled_pork_sandwich: continental
+  ramen: continental
+  ravioli: continental
+  risotto: continental
+  scallops: continental
+  seaweed_salad: continental
+  shrimp_and_grits: continental
+  spaghetti_bolognese: continental
+  spaghetti_carbonara: continental
+  steak: continental
+  sushi: continental
+  sashimi: continental
+  takoyaki: continental
+  tuna_tartare: continental
+
+# UECFOOD256 - Map by ID ranges and keywords
+uecfood256:
+  # Japanese dishes → continental (international)
+  default: continental
+  # Sweet items
+  cake: desserts
+  pudding: desserts
+  ice: desserts
+  cookie: desserts
+  chocolate: desserts
+  # Drinks
+  juice: beverages
+  tea: beverages
+  coffee: beverages
+  milk: beverages
+  # Fast food keywords
+  burger: fast_food
+  pizza: fast_food
+  fries: fast_food
+  fried: fast_food
+
+# Indian food dataset - all indian
+indian_food:
+  default: indian
+
+# Aircrowd - infer from keywords
+aircrowd:
+  default: continental
+  curry: indian
+  biryani: indian
+  naan: indian
+  samosa: indian
+  dal: indian
+  paneer: indian
+  masala: indian
+  tikka: indian
+  burger: fast_food
+  pizza: fast_food
+  fries: fast_food
+  hot_dog: fast_food
+  taco: street_food
+  wrap: street_food
+  cake: desserts
+  ice_cream: desserts
+  cookie: desserts
+  pie: desserts
+  juice: beverages
+  coffee: beverages
+  tea: beverages
+  smoothie: beverages
