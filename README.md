@@ -317,13 +317,13 @@ graph TD
 
 | Member | Role |
 |--------|------|
-| **Raj** | Project lead — Architecture, AI generation, training pipeline, inference |
+| **Raj** | Architecture, AI generation, training pipeline, inference |
 | **Rahul** | Data validation, category mapping, evaluation scripts |
 | **Aman** | Dataset management, augmentation testing, dual-stream model |
 
 ---
 
 <p align="center">
-  <b>BML — Semester VI — Project 3</b><br/>
+  <b>Project</b><br/>
   Built with 🔬 PyTorch and ☕ caffeine
 </p>
