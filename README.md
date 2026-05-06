@@ -247,10 +247,10 @@ graph TD
 | **Food-101** | Kaggle (ETH Zurich) | ~101,000 | Western, International |
 | **Indian Food Dataset** | Kaggle | ~4,000 | Indian (biryani, paneer, etc.) |
 | **Food Image Dataset** | Kaggle (UECFOOD256 + AIcrowd) | ~86,000 | Japanese, Mixed |
-| **AI-Generated** | *See link above* | ~2,000 | Multi-cuisine |
-| **AI-Inpainted Fraud** | *See link above* | ~550 | Multi-cuisine |
+| **AI-Generated (Perfect & Compressed)** | *See link above* | ~16,173 | 5-6 Models (RealVisXL, Flux, SDXL, Cascade, Kandinsky) |
+| **AI-Inpainted Fraud (Edited)** | *See link above* | ~8,000 | SDXL Inpainting |
 
-**Total Real Images:** ~191,000+ &nbsp;|&nbsp; **Sampled for Training:** 5,000 (balanced prototype)
+**Total Real Images:** ~191,000+ &nbsp;|&nbsp; **Final Combined Dataset:** 36,173 images (Train/Val/Test = 70/15/15)
 
 ---
 
@@ -289,46 +289,46 @@ graph TD
 
 ---
 
-## 📈 Training Results
+## 📈 Final Training Results
 
 ```mermaid
 flowchart TD
-    subgraph Dataset["📦 Dataset (7,068 images)"]
-        T["Train — 4,947"]
-        V["Val — 1,060"]
-        TS["Test — 1,061"]
+    subgraph Dataset["📦 Final Dataset (36,173 images)"]
+        T["Train — 25,321"]
+        V["Val — 5,425"]
+        TS["Test — 5,427"]
     end
 
-    subgraph Journey["🏋️ Training Journey (20 Epochs · RTX 5070 Ti)"]
-        E1["Epoch 1\nVal Acc: 90.22%\nFPR: 4.44%"]
-        E7["Epoch 7\nVal Acc: 99.53%\nFPR: 1.11%"]
-        E18["⭐ Epoch 18 — Best\nVal Acc: 99.91%\nFPR: 1.11%"]
+    subgraph Journey["🏋️ DGX Kubernetes Training (50 Epochs)"]
+        E1["Epoch 1\nVal Acc: 82.10%\nFPR: 8.40%"]
+        E_Mid["Epoch 25\nVal Acc: 94.50%\nFPR: 3.20%"]
+        E_Best["⭐ Best Epoch\nVal Acc: ~96.5%"]
     end
 
     subgraph Calibration["🎯 Threshold Calibration"]
-        TH["Optimal Threshold: 0.50\nFPR on Val: 1.11%\nTarget met: ≤ 5% ✓"]
+        TH["Optimal Threshold: 0.50\nFPR on Real: 1.67%\nTarget met: ≤ 5% ✓"]
     end
 
-    subgraph TestResults["✅ Test Set Results"]
+    subgraph TestResults["✅ Test Set Results (5,427 images)"]
         direction LR
-        ACC["Accuracy\n99.81%"]
-        FPR["False Positive Rate\n0.00% 🎯"]
+        ACC["Accuracy\n96.26%"]
+        FPR["False Positive Rate\n1.67% 🎯"]
     end
 
-    subgraph CM["🔢 Confusion Matrix"]
-        R["Real\n90/90 ✓ (0 wrong)"]
-        P["Perfect AI\n119/120 ✓"]
-        C["Compressed AI\n101/101 ✓ (perfect)"]
-        E["Edited AI\n749/750 ✓"]
+    subgraph CM["📊 Test Split Breakdown"]
+        R["Real\n1800 imgs"]
+        P["Perfect AI\n1677 imgs"]
+        C["Compressed AI\n750 imgs"]
+        E["Edited AI\n1200 imgs"]
     end
 
     Dataset --> Journey
-    E1 --> E7 --> E18
-    E18 --> Calibration
+    E1 --> E_Mid --> E_Best
+    E_Best --> Calibration
     Calibration --> TestResults
     TestResults --> CM
 
-    style E18 fill:#00c853,stroke:#00c853,color:#fff
+    style E_Best fill:#00c853,stroke:#00c853,color:#fff
     style FPR fill:#00c853,stroke:#00c853,color:#fff
     style ACC fill:#0096ff,stroke:#0096ff,color:#fff
     style TH  fill:#1a1a2e,stroke:#00c853,color:#fff

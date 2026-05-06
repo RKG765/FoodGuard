@@ -14,7 +14,11 @@ dataset_4class/
 # =========================
 # MODEL CHECKPOINTS & WEIGHTS
 # =========================
-checkpoints/
+checkpoints/*
+!checkpoints/food_detector/
+checkpoints/food_detector/*
+!checkpoints/food_detector/food_ai_detector.pth
+!checkpoints/food_detector/metadata.json
 *.pt
 *.pth
 *.ckpt

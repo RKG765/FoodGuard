@@ -1,0 +1,21 @@
+{
+  "model": "efficientnet_b3",
+  "num_classes": 4,
+  "image_size": 512,
+  "threshold": 0.5,
+  "test_accuracy": 0.9625944352312511,
+  "test_fpr": 0.015555555555555555,
+  "class_names": [
+    "compressed_ai",
+    "edited_ai",
+    "perfect_ai",
+    "real"
+  ],
+  "real_class_index": 3,
+  "dropout": 0.3,
+  "label_smoothing": 0.1,
+  "effective_batch_size": 32,
+  "epochs_trained": 19,
+  "best_val_loss": 0.23254557322053349,
+  "trained_at": "2026-05-02T03:22:54.882214"
+}
