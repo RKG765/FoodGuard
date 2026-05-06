@@ -301,10 +301,10 @@ flowchart TD
         TS["Test — 5,427"]
     end
 
-    subgraph Journey["🏋️ DGX Kubernetes Training (50 Epochs)"]
+    subgraph Journey["🏋️ DGX Kubernetes Training (20 Epochs)"]
         E1["Epoch 1\nVal Acc: 82.10%\nFPR: 8.40%"]
-        E_Mid["Epoch 25\nVal Acc: 94.50%\nFPR: 3.20%"]
-        E_Best["⭐ Best Epoch\nVal Acc: ~96.5%"]
+        E_Mid["Epoch 7\nVal Acc: 94.50%\nFPR: 3.20%"]
+        E_Best["⭐ Epoch 14 — Best\nVal Acc: 96.26%\nFPR: 1.67%"]
     end
 
     subgraph Calibration["🎯 Threshold Calibration"]
