@@ -378,17 +378,7 @@ flowchart TD
 - **Food Safety Agencies** — Verify authenticity of food complaint evidence
 - **Social Media** — Flag AI-generated food content for transparency
 
----
 
-## 👥 Team
-
-| Member | Role |
-|--------|------|
-| **Raj** | Architecture, AI generation, training pipeline, inference |
-| **Rahul** | Data validation, category mapping, evaluation scripts |
-| **Aman** | Dataset management, augmentation testing, dual-stream model |
-
----
 
 <p align="center">
   <b>Project</b><br/>

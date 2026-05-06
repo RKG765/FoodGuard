@@ -1,0 +1,19 @@
+FoodGuard 4-Class Detector — Evaluation on 'test' split
+Checkpoint : checkpoints/food_detector/food_ai_detector.pth
+Threshold  : 0.500
+
+Accuracy (argmax)   : 96.26%
+Accuracy (threshold): 96.26%
+FPR Real (argmax)   : 1.56%
+FPR Real (threshold): 1.67%
+
+               precision    recall  f1-score   support
+
+compressed_ai     0.9887    0.8147    0.8933       750
+    edited_ai     0.9865    0.9717    0.9790      1200
+   perfect_ai     0.9174    1.0000    0.9569      1677
+         real     0.9839    0.9833    0.9836      1800
+
+     accuracy                         0.9626      5427
+    macro avg     0.9691    0.9424    0.9532      5427
+ weighted avg     0.9646    0.9626    0.9619      5427

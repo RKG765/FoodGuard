@@ -94,7 +94,6 @@ ehthumbs.db
 *.tmp
 *.bak
 *.swp
-results/
 qt_result.txt
 quick_test_output.txt
 
@@ -121,3 +120,9 @@ config/default.yaml
 *.pptx
 *.docx
 REPORT.md
+generate_corporate_pptx.py
+generate_pptx.py
+howtopresent.md
+KUBERNETES_TRAINING_PIPELINE.md
+PIPELINE_STATUS.md
+dashboard/
