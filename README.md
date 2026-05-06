@@ -152,13 +152,15 @@ pip install -r requirements.txt
 
 ### 2. 🪄 Run the Web App (Easiest Way!)
 
-You don't need to train the model to try it! Just download the repository, run the Streamlit app, upload a food photo, and watch the forensic AI do its magic ✨.
+You don't need to train the model to try it! The trained model weights are already included in this repository. 
+
+As long as you have completed **Step 1** (installing dependencies), you can just run the Streamlit app, upload a food photo, and watch the forensic AI do its magic ✨.
 
 ```bash
 streamlit run app.py
 ```
 
-It will automatically load the best trained model. You can drag & drop images directly into your browser to see real-time forensic analysis, including Grad-CAM explainability and Error Level Analysis (ELA) bounding boxes.
+It will automatically load the pre-trained weights. You can drag & drop images directly into your browser to see real-time forensic analysis, including Grad-CAM explainability and Error Level Analysis (ELA) bounding boxes.
 
 ### 3. Run Inference (Command Line)
 
