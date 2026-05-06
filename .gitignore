@@ -119,7 +119,6 @@ config/default.yaml
 0.9.0
 *.pptx
 *.docx
-REPORT.md
 generate_corporate_pptx.py
 generate_pptx.py
 howtopresent.md
