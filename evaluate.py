@@ -1,164 +1,369 @@
 """
-Evaluate trained Food Classifier
+FoodGuard 4-Class Detector — Evaluation Script
+================================================
+
+Loads the trained EfficientNet-B3 checkpoint produced by train_4class_detector.py
+and evaluates it on the held-out test set in dataset_4class/test/.
 
 Usage:
-    python evaluate.py --checkpoint checkpoints/best.pt --dataset food_101
+    python evaluate.py
+    python evaluate.py --checkpoint checkpoints/food_detector/food_ai_detector.pth
+    python evaluate.py --checkpoint checkpoints/food_detector/best.pth --output-dir results/
 """
 
 import argparse
+import json
 from pathlib import Path
+
 import torch
-import torch.nn as nn
-from sklearn.metrics import classification_report, confusion_matrix
+import timm
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+from torch.cuda.amp import autocast
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+import torchvision.transforms as transforms
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+)
 
-import sys
-sys.path.insert(0, str(Path(__file__).parent))
 
-from src.data import FoodDataset, get_val_transforms
-from src.models import FoodClassifier
+# ---------------------------------------------------------------------------
+# Constants (must match train_4class_detector.py)
+# ---------------------------------------------------------------------------
+CLASS_NAMES = ["compressed_ai", "edited_ai", "perfect_ai", "real"]
+IMAGE_SIZE  = 512
+DATA_ROOT   = Path("e:/BML/Semester-VI/Prj-3/dataset_4class")
 
 
+# ---------------------------------------------------------------------------
+# Argument Parsing
+# ---------------------------------------------------------------------------
 def parse_args():
-    parser = argparse.ArgumentParser(description='Evaluate Food Classifier')
-    parser.add_argument('--checkpoint', type=str, required=True,
-                        help='Path to model checkpoint')
-    parser.add_argument('--dataset', type=str, default='food_101',
-                        help='Dataset to evaluate on')
-    parser.add_argument('--data-root', type=str, default='e:/BML/Semester-VI/Prj-3',
-                        help='Data root directory')
-    parser.add_argument('--batch-size', type=int, default=32,
-                        help='Batch size')
-    parser.add_argument('--output-dir', type=str, default='results',
-                        help='Directory to save results')
+    parser = argparse.ArgumentParser(description="Evaluate FoodGuard 4-class detector")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default="checkpoints/food_detector/food_ai_detector.pth",
+        help="Path to trained model weights (.pth)",
+    )
+    parser.add_argument(
+        "--metadata",
+        type=str,
+        default="checkpoints/food_detector/metadata.json",
+        help="Path to metadata.json saved during training",
+    )
+    parser.add_argument(
+        "--data-root",
+        type=str,
+        default=str(DATA_ROOT),
+        help="Root directory containing train/val/test subfolders",
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        default="test",
+        choices=["train", "val", "test"],
+        help="Which split to evaluate on (default: test)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="Batch size for evaluation",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="results",
+        help="Directory to save confusion matrix and report",
+    )
     return parser.parse_args()
 
 
-@torch.no_grad()
-def evaluate(model, dataloader, device):
-    """Run evaluation and collect predictions."""
+# ---------------------------------------------------------------------------
+# Data
+# ---------------------------------------------------------------------------
+def get_eval_transform(image_size: int = IMAGE_SIZE):
+    return transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std =[0.229, 0.224, 0.225],
+        ),
+    ])
+
+
+def build_dataloader(data_root: str, split: str, batch_size: int):
+    split_dir = Path(data_root) / split
+    if not split_dir.exists():
+        raise FileNotFoundError(
+            f"Split directory not found: {split_dir}\n"
+            "Run scripts/organize_4class_dataset.py first."
+        )
+    dataset = ImageFolder(split_dir, transform=get_eval_transform())
+    loader  = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
+    print(f"Evaluating on '{split}' split — {len(dataset)} images")
+    print(f"Classes (ImageFolder order): {dataset.classes}")
+    return loader, dataset.classes
+
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+def load_model(checkpoint_path: str, metadata_path: str, device: str):
+    """Load EfficientNet-B3 weights and calibrated threshold from disk."""
+    ckpt_path = Path(checkpoint_path)
+    meta_path = Path(metadata_path)
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(
+            f"Checkpoint not found: {ckpt_path}\n"
+            "Train the model first with: python train_4class_detector.py"
+        )
+
+    # Load metadata for threshold (generated by train_4class_detector.py)
+    threshold = 0.85  # sensible default
+    model_name = "efficientnet_b3"
+    num_classes = 4
+
+    if meta_path.exists():
+        with open(meta_path) as f:
+            meta = json.load(f)
+        threshold   = meta.get("threshold",   threshold)
+        model_name  = meta.get("model",       model_name)
+        num_classes = meta.get("num_classes", num_classes)
+        print(f"Loaded metadata — model: {model_name}, threshold: {threshold:.3f}")
+    else:
+        print(f"⚠ metadata.json not found at {meta_path}. Using defaults.")
+
+    model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
+    state = torch.load(ckpt_path, map_location=device)
+    model.load_state_dict(state)
+    model.to(device)
     model.eval()
-    all_preds = []
+
+    print(f"Loaded checkpoint: {ckpt_path}")
+    return model, threshold
+
+
+# ---------------------------------------------------------------------------
+# Inference
+# ---------------------------------------------------------------------------
+@torch.no_grad()
+def run_inference(model, loader, device):
+    """Collect raw logits, softmax probs, predictions, and true labels."""
+    all_probs  = []
+    all_preds  = []
     all_labels = []
-    
-    for images, labels in dataloader:
+
+    for images, labels in loader:
         images = images.to(device)
-        outputs = model(images)
-        _, preds = outputs.max(1)
-        
+        with autocast():
+            logits = model(images)
+        probs = torch.softmax(logits, dim=1)
+        preds = logits.argmax(dim=1)
+
+        all_probs.extend(probs.cpu().numpy())
         all_preds.extend(preds.cpu().numpy())
         all_labels.extend(labels.numpy())
-    
-    return np.array(all_preds), np.array(all_labels)
+
+    return (
+        np.array(all_probs),
+        np.array(all_preds),
+        np.array(all_labels),
+    )
 
 
-def plot_confusion_matrix(cm, classes, output_path, top_n=20):
-    """Plot confusion matrix for top N most confused classes."""
-    # Find most confused classes
-    np.fill_diagonal(cm, 0)
-    confusion_sums = cm.sum(axis=1) + cm.sum(axis=0)
-    top_indices = confusion_sums.argsort()[-top_n:]
-    
-    # Extract sub-matrix
-    cm_subset = cm[np.ix_(top_indices, top_indices)]
-    class_subset = [classes[i] for i in top_indices]
-    
-    plt.figure(figsize=(12, 10))
-    sns.heatmap(cm_subset, annot=True, fmt='d', cmap='Blues',
-                xticklabels=class_subset, yticklabels=class_subset)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title(f'Confusion Matrix (Top {top_n} Most Confused Classes)')
+REAL_IDX = 3  # ImageFolder alphabetical: compressed_ai=0, edited_ai=1, perfect_ai=2, real=3
+
+
+def apply_threshold(probs: np.ndarray, threshold: float) -> np.ndarray:
+    """Re-classify with the calibrated P(real) threshold."""
+    preds = []
+    for p in probs:
+        if p[REAL_IDX] > threshold:          # real class index
+            preds.append(REAL_IDX)
+        else:
+            # best AI class (exclude real)
+            ai_probs = np.concatenate([p[:REAL_IDX], p[REAL_IDX+1:]])
+            ai_indices = [i for i in range(len(p)) if i != REAL_IDX]
+            preds.append(ai_indices[int(ai_probs.argmax())])
+    return np.array(preds)
+
+
+# ---------------------------------------------------------------------------
+# Metrics & Visualisation
+# ---------------------------------------------------------------------------
+def compute_fpr_on_real(labels: np.ndarray, preds: np.ndarray) -> float:
+    """FPR = real images incorrectly flagged as AI / total real images."""
+    real_mask   = labels == REAL_IDX
+    total_real  = real_mask.sum()
+    if total_real == 0:
+        return 0.0
+    false_flags = ((preds != REAL_IDX) & real_mask).sum()
+    return false_flags / total_real
+
+
+def plot_confusion_matrix(
+    cm: np.ndarray,
+    class_names: list,
+    output_path: Path,
+    title: str = "Confusion Matrix",
+):
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=class_names,
+        yticklabels=class_names,
+        ax=ax,
+    )
+    ax.set_xlabel("Predicted Label", fontsize=12)
+    ax.set_ylabel("True Label",      fontsize=12)
+    ax.set_title(title,              fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
-    print(f"Confusion matrix saved to: {output_path}")
+    print(f"Confusion matrix saved → {output_path}")
 
 
+def plot_per_class_accuracy(
+    labels: np.ndarray,
+    preds:  np.ndarray,
+    class_names: list,
+    output_path: Path,
+):
+    accs = []
+    for i, name in enumerate(class_names):
+        mask = labels == i
+        acc  = (preds[mask] == i).mean() * 100 if mask.sum() > 0 else 0.0
+        accs.append(acc)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bars = ax.bar(class_names, accs, color=["#2ecc71", "#e74c3c", "#f39c12", "#9b59b6"])
+    ax.set_ylim(0, 110)
+    ax.set_ylabel("Accuracy (%)", fontsize=12)
+    ax.set_title("Per-Class Accuracy", fontsize=14)
+    for bar, acc in zip(bars, accs):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 1,
+            f"{acc:.1f}%",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+    print(f"Per-class accuracy chart saved → {output_path}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def main():
-    args = parse_args()
-    
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
-    
-    # Create output directory
+    args   = parse_args()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"\nDevice : {device}")
+    if device == "cuda":
+        print(f"GPU    : {torch.cuda.get_device_name(0)}")
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Load checkpoint
-    print(f"\nLoading checkpoint: {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
-    
-    # Load test dataset
-    print(f"\nLoading {args.dataset} test set...")
-    transform = get_val_transforms(224)
-    test_dataset = FoodDataset(
-        root_dir=args.data_root,
-        dataset_name=args.dataset,
-        split='test',
-        transform=transform
+
+    # ── Load data ────────────────────────────────────────────────────────────
+    loader, folder_classes = build_dataloader(
+        args.data_root, args.split, args.batch_size
     )
-    
-    test_loader = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=4
+
+    # ── Load model ───────────────────────────────────────────────────────────
+    model, threshold = load_model(args.checkpoint, args.metadata, device)
+
+    # ── Argmax predictions (raw) ──────────────────────────────────────────────
+    probs, preds_raw, labels = run_inference(model, loader, device)
+
+    # ── Threshold-calibrated predictions ─────────────────────────────────────
+    preds_cal = apply_threshold(probs, threshold)
+
+    # ── Metrics ──────────────────────────────────────────────────────────────
+    acc_raw = (preds_raw == labels).mean() * 100
+    acc_cal = (preds_cal == labels).mean() * 100
+    fpr_raw = compute_fpr_on_real(labels, preds_raw) * 100
+    fpr_cal = compute_fpr_on_real(labels, preds_cal) * 100
+
+    separator = "=" * 60
+    print(f"\n{separator}")
+    print("EVALUATION RESULTS")
+    print(separator)
+    print(f"Split              : {args.split}")
+    print(f"Samples            : {len(labels)}")
+    print(separator)
+    print(f"Accuracy  (argmax) : {acc_raw:.2f}%")
+    print(f"Accuracy  (thresh) : {acc_cal:.2f}%   ← calibrated (threshold={threshold:.3f})")
+    print(f"FPR Real  (argmax) : {fpr_raw:.2f}%")
+    print(f"FPR Real  (thresh) : {fpr_cal:.2f}%   ← target ≤5%")
+    fpr_status = "✓ TARGET MET" if fpr_cal <= 5.0 else "✗ TARGET MISSED"
+    print(f"FPR Status         : {fpr_status}")
+    print(separator)
+
+    # ── Classification report ────────────────────────────────────────────────
+    print("\nClassification Report (threshold-calibrated):")
+    report_str = classification_report(
+        labels, preds_cal, target_names=CLASS_NAMES, digits=4
     )
-    
-    num_classes = test_dataset.num_classes
-    classes = test_dataset.classes
-    print(f"Test samples: {len(test_dataset)}")
-    print(f"Number of classes: {num_classes}")
-    
-    # Create model
-    model = FoodClassifier(num_classes=num_classes)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model = model.to(device)
-    
-    # Evaluate
-    print("\nRunning evaluation...")
-    preds, labels = evaluate(model, test_loader, device)
-    
-    # Calculate metrics
-    accuracy = (preds == labels).mean() * 100
-    print(f"\nTest Accuracy: {accuracy:.2f}%")
-    
-    # Classification report
-    report = classification_report(labels, preds, target_names=classes, output_dict=True)
-    
-    # Save report
-    report_path = output_dir / 'classification_report.txt'
-    with open(report_path, 'w') as f:
-        f.write(f"Test Accuracy: {accuracy:.2f}%\n\n")
-        f.write(classification_report(labels, preds, target_names=classes))
-    print(f"Classification report saved to: {report_path}")
-    
-    # Confusion matrix
-    cm = confusion_matrix(labels, preds)
-    cm_path = output_dir / 'confusion_matrix.png'
-    plot_confusion_matrix(cm, classes, cm_path)
-    
-    # Top-5 and Bottom-5 classes by accuracy
-    per_class_acc = []
-    for i, cls in enumerate(classes):
-        mask = labels == i
-        if mask.sum() > 0:
-            acc = (preds[mask] == i).mean() * 100
-            per_class_acc.append((cls, acc, mask.sum()))
-    
-    per_class_acc.sort(key=lambda x: x[1], reverse=True)
-    
-    print("\nTop 5 Classes (by accuracy):")
-    for cls, acc, n in per_class_acc[:5]:
-        print(f"  {cls}: {acc:.1f}% (n={n})")
-    
-    print("\nBottom 5 Classes (by accuracy):")
-    for cls, acc, n in per_class_acc[-5:]:
-        print(f"  {cls}: {acc:.1f}% (n={n})")
+    print(report_str)
+
+    report_path = output_dir / "classification_report.txt"
+    with open(report_path, "w") as f:
+        f.write(f"FoodGuard 4-Class Detector — Evaluation on '{args.split}' split\n")
+        f.write(f"Checkpoint : {args.checkpoint}\n")
+        f.write(f"Threshold  : {threshold:.3f}\n\n")
+        f.write(f"Accuracy (argmax)   : {acc_raw:.2f}%\n")
+        f.write(f"Accuracy (threshold): {acc_cal:.2f}%\n")
+        f.write(f"FPR Real (argmax)   : {fpr_raw:.2f}%\n")
+        f.write(f"FPR Real (threshold): {fpr_cal:.2f}%\n\n")
+        f.write(report_str)
+    print(f"Classification report saved → {report_path}")
+
+    # ── Confusion matrices ────────────────────────────────────────────────────
+    cm_raw = confusion_matrix(labels, preds_raw)
+    cm_cal = confusion_matrix(labels, preds_cal)
+
+    plot_confusion_matrix(
+        cm_raw, CLASS_NAMES,
+        output_dir / "confusion_matrix_argmax.png",
+        title="Confusion Matrix (Argmax)",
+    )
+    plot_confusion_matrix(
+        cm_cal, CLASS_NAMES,
+        output_dir / "confusion_matrix_calibrated.png",
+        title=f"Confusion Matrix (Threshold={threshold:.3f})",
+    )
+
+    # ── Per-class accuracy bar chart ──────────────────────────────────────────
+    plot_per_class_accuracy(
+        labels, preds_cal, CLASS_NAMES,
+        output_dir / "per_class_accuracy.png",
+    )
+
+    print(f"\n{separator}")
+    print(f"All results saved to: {output_dir}/")
+    print(separator)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

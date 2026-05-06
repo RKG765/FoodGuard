@@ -21,12 +21,14 @@ METADATA_FILE = OUTPUT_DIR / "fraud_metadata.json"
 # Will use simple colored shapes as fraud objects
 # (You can replace with actual images later)
 FRAUD_OBJECTS = {
-    "cockroach": 100,
-    "housefly": 80,
-    "small worm": 80,
-    "human hair strand": 100,
-    "mold patch": 70,
-    "plastic fragment": 70,
+    "cockroach": 500,
+    "housefly": 400,
+    "small worm": 400,
+    "human hair strand": 500,
+    "mold patch": 400,
+    "plastic fragment": 400,
+    "metal shard": 200,
+    "piece of paper": 200,
 }
 
 SEED = 42
@@ -136,39 +138,67 @@ def main():
     total = sum(FRAUD_OBJECTS.values())
     print(f"Generating {total} fraud images...")
     
+    # Load existing metadata for resume support
+    overlay_meta_file = OUTPUT_DIR / "overlay_metadata.json"
     all_metadata = []
-    img_idx = 0
+    if overlay_meta_file.exists():
+        with open(overlay_meta_file, 'r') as f:
+            all_metadata = json.load(f)
     
+    # Count existing overlay images
+    existing_count = sum(1 for f in OUTPUT_DIR.glob("overlay_*.png"))
+    
+    # Build flat list of all objects
+    all_objects = []
     for obj_type, count in FRAUD_OBJECTS.items():
-        print(f"\n[{obj_type}] {count} images...")
-        for i in range(count):
-            source = random.choice(clean_pool)
-            result, meta = add_fraud_to_image(source, obj_type)
-            
-            if result is None:
-                continue
-            
-            filename = f"class4_{img_idx:05d}.png"
-            result.save(OUTPUT_DIR / filename)
-            
-            meta["image_path"] = f"ai_generated/class4_edited_real/{filename}"
-            meta["label"] = 2
-            all_metadata.append(meta)
-            
-            img_idx += 1
-            
-            if (i + 1) % 20 == 0:
-                print(f"  {i+1}/{count}")
+        all_objects.extend([obj_type] * count)
+    random.shuffle(all_objects)
+    total = len(all_objects)
     
-    # Save metadata
-    with open(METADATA_FILE, 'w') as f:
+    if existing_count >= total:
+        print(f"Already have {existing_count} overlay images, target is {total}. Done.")
+        return
+    
+    print(f"Resuming from {existing_count}/{total} overlay images...")
+    
+    import time
+    batch_start = time.time()
+    
+    for img_idx in range(existing_count, total):
+        fraud_object = all_objects[img_idx]
+        source = random.choice(clean_pool)
+        result, meta = add_fraud_to_image(source, fraud_object)
+        
+        if result is None:
+            continue
+        
+        # Use overlay_ prefix to distinguish from inpainting
+        filename = f"overlay_{img_idx:05d}.png"
+        result.save(OUTPUT_DIR / filename)
+        
+        meta["image_path"] = f"ai_generated/class4_edited_real/{filename}"
+        meta["label"] = 2
+        meta["method"] = "simple_overlay"
+        all_metadata.append(meta)
+        
+        if (img_idx + 1) % 100 == 0:
+            done = img_idx - existing_count + 1
+            elapsed = time.time() - batch_start
+            rate = elapsed / done if done > 0 else 0.1
+            eta_min = rate * (total - img_idx - 1) / 60
+            print(f"  [{done}/{total - existing_count}] {rate:.2f}s/img | ETA: {eta_min:.1f}min")
+            # Save checkpoint
+            with open(overlay_meta_file, 'w') as f:
+                json.dump(all_metadata, f, indent=2)
+    
+    # Final save
+    with open(overlay_meta_file, 'w') as f:
         json.dump(all_metadata, f, indent=2)
     
     print(f"\n{'=' * 70}")
-    print(f"✓ COMPLETE: {len(all_metadata)} fraud images generated")
-    print(f"  Time: ~{len(all_metadata) * 0.1:.0f} seconds (vs 30 min with SDXL)")
+    print(f"[OK] COMPLETE: {len(all_metadata)} overlay fraud images generated")
     print(f"  Output: {OUTPUT_DIR}")
-    print(f"  Metadata: {METADATA_FILE}")
+    print(f"  Metadata: {overlay_meta_file}")
     print(f"{'=' * 70}")
 
 

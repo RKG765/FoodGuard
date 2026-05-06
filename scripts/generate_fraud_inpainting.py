@@ -10,7 +10,7 @@ Strategy:
 - Inpaint fraud object (cockroach, hair, mold, etc.)
 - Save with full metadata tracking
 
-Target: 500 high-quality fraud images
+Target: 2000 high-quality fraud images
 """
 
 import json
@@ -42,18 +42,18 @@ GUIDANCE_SCALE = 4.5  # Very low to prevent object dominance, allow natural blen
 
 # Fraud objects with natural distribution (expanded per user request)
 FRAUD_OBJECTS = {
-    "cockroach": 60,
-    "housefly": 50,
-    "mosquito": 50,
-    "bee": 40,
-    "ant": 40,
-    "small worm": 40,
-    "human hair strand": 60,
-    "mold patch": 50,
-    "plastic fragment": 60,
-    "piece of paper": 50,
-    "metal shard": 50,
-    "dead insect": 50,
+    "cockroach": 200,
+    "housefly": 170,
+    "mosquito": 150,
+    "bee": 130,
+    "ant": 130,
+    "small worm": 130,
+    "human hair strand": 200,
+    "mold patch": 170,
+    "plastic fragment": 200,
+    "piece of paper": 170,
+    "metal shard": 170,
+    "dead insect": 180,
 }
 
 NEGATIVE_PROMPT = (
@@ -108,7 +108,7 @@ def load_clean_pool():
     clean_pool = [p for p in all_real if p not in pristine_5k]
     
     print(f"  Clean pool (for editing): {len(clean_pool):,}")
-    print(f"  ✓ Zero overlap with pristine guaranteed")
+    print(f"  [OK] Zero overlap with pristine guaranteed")
     
     return clean_pool
 
@@ -180,7 +180,7 @@ def setup_inpainting_pipeline():
     # Memory optimizations
     try:
         pipe.enable_xformers_memory_efficient_attention()
-        print("  ✓ xformers enabled")
+        print("  [OK] xformers enabled")
     except:
         pass
     
@@ -286,25 +286,36 @@ def main():
     print("GENERATING...")
     print(f"{'=' * 70}")
     
+    # Load existing metadata for resume support
     all_metadata = []
-    img_idx = 0
+    if METADATA_FILE.exists():
+        with open(METADATA_FILE, 'r') as f:
+            all_metadata = json.load(f)
+    
+    # Count existing inpainted images
+    existing_count = sum(1 for f in OUTPUT_DIR.glob("inpaint_*.png"))
     
     # RANDOMIZE object selection instead of sequential generation
-    # Create weighted list of all objects
     all_objects = []
     for obj_type, count in FRAUD_OBJECTS.items():
         all_objects.extend([obj_type] * count)
     
-    random.shuffle(all_objects)  # Randomize order
+    random.shuffle(all_objects)
     total = len(all_objects)
     
-    print(f"Generating {total} images with randomized fraud objects...")
+    if existing_count >= total:
+        print(f"Already have {existing_count} inpainted images, target is {total}. Done.")
+        return
     
-    for img_idx, fraud_object in enumerate(all_objects):
-        # Random source from clean pool
+    print(f"Resuming from {existing_count}/{total} inpainted images...")
+    
+    import time
+    batch_start = time.time()
+    
+    for img_idx in range(existing_count, total):
+        fraud_object = all_objects[img_idx]
         source_path = random.choice(clean_pool)
         
-        # Generate
         result_img, metadata = generate_fraud_image(
             pipe, device, source_path, fraud_object
         )
@@ -312,30 +323,36 @@ def main():
         if result_img is None:
             continue
         
-        # Save
-        filename = f"class4_{img_idx:05d}.png"
+        # Use inpaint_ prefix to distinguish from simple overlay
+        filename = f"inpaint_{img_idx:05d}.png"
         save_path = OUTPUT_DIR / filename
         result_img.save(save_path)
         
-        # Update metadata
         metadata["image_path"] = f"ai_generated/class4_edited_real/{filename}"
         metadata["label"] = 2
+        metadata["method"] = "sdxl_inpainting"
         all_metadata.append(metadata)
         
         if (img_idx + 1) % 20 == 0:
-            print(f"    Progress: {img_idx + 1} / {total}")
+            done = img_idx - existing_count + 1
+            elapsed = time.time() - batch_start
+            rate = elapsed / done if done > 0 else 1
+            eta_min = rate * (total - img_idx - 1) / 60
+            print(f"    [{done}/{total - existing_count}] {rate:.1f}s/img | ETA: {eta_min:.0f}min")
+            # Save metadata checkpoint
+            with open(METADATA_FILE, 'w') as f:
+                json.dump(all_metadata, f, indent=2)
     
-    # Save metadata
+    # Final metadata save
     with open(METADATA_FILE, 'w') as f:
         json.dump(all_metadata, f, indent=2)
     
     print(f"\n{'=' * 70}")
-    print("✓ GENERATION COMPLETE")
+    print("[OK] INPAINTING GENERATION COMPLETE")
     print(f"{'=' * 70}")
-    print(f"Total generated: {len(all_metadata)} images")
+    print(f"Total inpainted: {len(all_metadata)} images")
     print(f"Metadata saved: {METADATA_FILE}")
     print(f"Output directory: {OUTPUT_DIR}")
-    print(f"\nNext: Update dataset_index.csv and rebuild dataset")
     print(f"{'=' * 70}")
 
 

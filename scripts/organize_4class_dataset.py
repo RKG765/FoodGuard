@@ -16,6 +16,7 @@ Into:
 Split: 70% train, 15% val, 15% test
 """
 
+import csv
 import shutil
 import random
 from pathlib import Path
@@ -34,15 +35,19 @@ REAL_SOURCES = [
 
 AI_SOURCES = {
     "perfect_ai": [
-        PROJECT_ROOT / "ai_generated" / "indian",  # Old 68 perfect images
-        PROJECT_ROOT / "ai_generated" / "class1_raw",
+        PROJECT_ROOT / "ai_generated" / "indian",          # Old 68 SD3 images
+        PROJECT_ROOT / "ai_generated" / "class1_raw",      # SDXL RealVisXL raw
+        PROJECT_ROOT / "ai_generated" / "flux_schnell",    # Flux.1 Schnell (Flow-Matching)
+        PROJECT_ROOT / "ai_generated" / "stable_cascade",  # Stable Cascade (3-stage)
+        PROJECT_ROOT / "ai_generated" / "kandinsky3",      # Kandinsky 2.2 (multilingual)
+        PROJECT_ROOT / "ai_generated" / "sdxl_turbo",      # SDXL Turbo + Lightning (distilled)
     ],
     "compressed_ai": [
         PROJECT_ROOT / "ai_generated" / "class2_compressed",
     ],
     "edited_ai": [
-        PROJECT_ROOT / "ai_generated" / "class3_degraded",  # Note: degraded == blurred, map to edited
-        PROJECT_ROOT / "ai_generated" / "class4_edited_real",
+        PROJECT_ROOT / "ai_generated" / "class3_degraded",   # SDXL degraded/blurred
+        PROJECT_ROOT / "ai_generated" / "class4_edited_real", # Inpainting + overlay fraud
     ],
 }
 
@@ -102,10 +107,10 @@ def main():
     real_images = collect_images(REAL_SOURCES)
     print(f"  Total real: {len(real_images)}")
     
-    # Sample down to ~5000
-    if len(real_images) > 5000:
-        real_images = random.sample(real_images, 5000)
-        print(f"  Sampled: 5000")
+    # Sample down to ~12000
+    if len(real_images) > 12000:
+        real_images = random.sample(real_images, 12000)
+        print(f"  Sampled: 12000")
     
     real_splits = split_images(real_images, SPLIT_RATIOS)
     for split, imgs in real_splits.items():
@@ -142,8 +147,42 @@ def main():
             count = len(list((OUTPUT_DIR / split / class_name).iterdir()))
             print(f"  {class_name:15s}: {count:5d} images")
     
+    # ── Build dataset_index.csv ──────────────────────────────
+    csv_path = PROJECT_ROOT / "dataset_index.csv"
+    print(f"\n{'=' * 60}")
+    print("BUILDING dataset_index.csv")
+    print("=" * 60)
+
+    rows = []
+    for split in ["train", "val", "test"]:
+        for class_name in ["real", "perfect_ai", "compressed_ai", "edited_ai"]:
+            class_dir = OUTPUT_DIR / split / class_name
+            if not class_dir.exists():
+                continue
+            for img_file in sorted(class_dir.iterdir()):
+                if img_file.is_file() and img_file.suffix.lower() in IMAGE_EXTENSIONS:
+                    rel_path = img_file.relative_to(PROJECT_ROOT)
+                    rows.append((
+                        str(rel_path),   # image_path
+                        split,           # split  (train / val / test)
+                        class_name,      # label  (real / perfect_ai / compressed_ai / edited_ai)
+                    ))
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["image_path", "split", "label"])
+        writer.writerows(rows)
+
+    print(f"  Wrote {len(rows)} entries to {csv_path}")
+
+    # Per-split breakdown
+    for split in ["train", "val", "test"]:
+        split_rows = [r for r in rows if r[1] == split]
+        print(f"  {split:6s}: {len(split_rows)} rows")
+
     print(f"\n{'=' * 60}")
     print(f"Dataset ready: {OUTPUT_DIR}")
+    print(f"CSV ready:     {csv_path}")
     print("You can now run: python train_4class_detector.py")
     print(f"{'=' * 60}")
 

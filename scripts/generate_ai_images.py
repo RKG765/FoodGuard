@@ -34,10 +34,10 @@ INFERENCE_STEPS = 25
 GUIDANCE_SCALE = 5.0
 
 CLASS_TARGETS = {
-    "class1_raw": 600,
-    "class2_compressed": 600,
-    "class3_degraded": 400,
-    "class4_edited_real": 400,
+    "class1_raw": 5000,
+    "class2_compressed": 5000,
+    "class3_degraded": 2500,
+    "class4_edited_real": 2500,
 }
 
 REAL_IMAGE_DIRS = [
@@ -51,18 +51,58 @@ REAL_IMAGE_DIRS = [
 # =============================================================================
 
 FOOD_PROMPTS = [
+    # Indian
     "butter chicken with naan bread",
     "biryani rice with raita",
     "samosa with green chutney",
     "paneer tikka masala",
+    "pani puri street food",
+    "masala dosa with coconut chutney",
+    "chole bhature on a plate",
+    "tandoori chicken with mint chutney",
+    "dal makhani in a bowl",
+    "gulab jamun dessert",
+    # Western fast food
     "cheeseburger with fries",
-    "pepperoni pizza",
-    "pani puri",
-    "chocolate lava cake",
-    "cheesecake slice",
+    "pepperoni pizza slice",
+    "fish and chips on newspaper",
+    "fried chicken bucket",
+    "hot dog with mustard and ketchup",
+    "chicken nuggets with dipping sauce",
+    # Continental
+    "pasta carbonara on a plate",
     "grilled salmon with vegetables",
-    "pasta carbonara",
-    "ramen bowl with egg",
+    "caesar salad with croutons",
+    "steak with mashed potatoes",
+    "risotto with mushrooms",
+    "french onion soup in a bowl",
+    "eggs benedict with hollandaise",
+    "lobster thermidor",
+    # Asian
+    "ramen bowl with egg and nori",
+    "sushi platter with wasabi",
+    "pad thai with shrimp",
+    "dim sum steamer basket",
+    "pho soup with beef",
+    "bibimbap in a stone pot",
+    "spring rolls with sweet chili sauce",
+    "chicken teriyaki with rice",
+    # Desserts
+    "chocolate lava cake",
+    "cheesecake slice with berries",
+    "tiramisu in a glass",
+    "creme brulee with caramelized top",
+    "apple pie with ice cream",
+    "macarons on a plate",
+    "waffles with syrup and butter",
+    "fresh fruit tart",
+    # Beverages & sides
+    "cappuccino with latte art",
+    "fresh fruit smoothie bowl",
+    "bruschetta with tomatoes",
+    "nachos with cheese and guacamole",
+    "falafel wrap with tahini",
+    "paella in a large pan",
 ]
 
 QUALITY_MODIFIERS = [
@@ -245,11 +285,16 @@ def generate_class(pipe, device, class_name, target, checkpoint):
     meta = checkpoint.get(class_name, [])
     remaining = target - existing
 
-    print(f"{class_name}: generating {remaining}")
+    print(f"{class_name}: generating {remaining} (existing: {existing}, target: {target})")
 
     real_images = collect_real_images()
 
+    import time
+    batch_start = time.time()
+
     for i in range(existing, target):
+        iter_start = time.time()
+
         if class_name == "class4_edited_real":
             src_path = random.choice(real_images)
             image = Image.open(src_path).convert("RGB")
@@ -273,6 +318,13 @@ def generate_class(pipe, device, class_name, target, checkpoint):
         if i % 25 == 0:
             checkpoint[class_name] = meta
             save_checkpoint(checkpoint)
+            # ETA logging
+            done = i - existing + 1
+            elapsed = time.time() - batch_start
+            rate = elapsed / done if done > 0 else 1
+            eta_sec = rate * (target - i - 1)
+            eta_min = eta_sec / 60
+            print(f"  [{class_name}] {done}/{remaining} done | {rate:.1f}s/img | ETA: {eta_min:.0f}min")
 
     checkpoint[class_name] = meta
     save_checkpoint(checkpoint)

@@ -50,7 +50,7 @@ class FoodDetector:
         
         # Transforms
         self.transform = transforms.Compose([
-            transforms.Resize(self.image_size),
+            transforms.Resize((self.image_size, self.image_size)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                std=[0.229, 0.224, 0.225])
@@ -75,18 +75,22 @@ class FoodDetector:
         outputs = self.model(input_tensor)
         probs = F.softmax(outputs, dim=1)[0]
         
-        # Threshold-based decision (Step 10 logic)
-        prob_real = probs[0].item()
+        # Real class index (ImageFolder sorts alphabetically:
+        # compressed_ai=0, edited_ai=1, perfect_ai=2, real=3)
+        real_idx = self.metadata.get("real_class_index",
+                                     self.class_names.index("real"))
+        prob_real = probs[real_idx].item()
         
         if prob_real > self.threshold:
             prediction = "real"
             confidence = prob_real
         else:
-            # AI detected - choose highest AI class
-            ai_probs = probs[1:]
-            ai_idx = ai_probs.argmax().item() + 1
-            prediction = self.class_names[ai_idx]
-            confidence = probs[ai_idx].item()
+            # AI detected - choose highest AI class (skip real index)
+            ai_indices = [i for i in range(len(self.class_names)) if i != real_idx]
+            ai_probs = [(i, probs[i].item()) for i in ai_indices]
+            best_ai_idx, best_ai_prob = max(ai_probs, key=lambda x: x[1])
+            prediction = self.class_names[best_ai_idx]
+            confidence = best_ai_prob
         
         return {
             "prediction": prediction,

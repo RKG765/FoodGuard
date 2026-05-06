@@ -29,7 +29,7 @@
 
 > **Goal:** Achieve ≤ 5% False Positive Rate — genuine food photos must NOT be wrongly flagged.
 
----
+
 
 ## 🏗️ System Architecture
 
@@ -150,31 +150,44 @@ FoodGuard/
 pip install -r requirements.txt
 ```
 
-### 2. Prepare Dataset
+### 2. 🪄 Run the Web App (Easiest Way!)
+
+You don't need to train the model to try it! Just download the repository, run the Streamlit app, upload a food photo, and watch the forensic AI do its magic ✨.
 
 ```bash
-# Build the unified CSV from raw datasets
-python scripts/build_csv.py
-
-# Organize into 4-class train/val/test splits (70/15/15)
-python scripts/organize_4class_dataset.py
+streamlit run app.py
 ```
 
-### 3. Train the Model
+It will automatically load the best trained model. You can drag & drop images directly into your browser to see real-time forensic analysis, including Grad-CAM explainability and Error Level Analysis (ELA) bounding boxes.
 
-```bash
-python train_4class_detector.py
-```
+### 3. Run Inference (Command Line)
 
-Training uses **mixed-precision (AMP)** on CUDA automatically. Checkpoints are saved to `checkpoints/food_detector/`.
-
-### 4. Run Inference
+If you prefer the terminal:
 
 ```bash
 python inference.py path/to/food_image.jpg
 ```
 
-**Sample Output:**
+### 4. Build Dataset & Train (For Developers)
+
+If you want to train the model yourself or generate more AI images, you will use the files in the `scripts/` folder.
+
+**Image Generation Scripts:**
+All AI image generation happens in the `scripts/` directory. If you want to generate your own fake food images, use scripts like `generate_ai_images.py` and `generate_fraud_inpainting.py`.
+
+**Prepare Data & Train:**
+```bash
+# Build unified CSV and organize datasets
+python scripts/build_csv.py
+python scripts/organize_4class_dataset.py
+
+# Run training (uses AMP automatically)
+python train_4class_detector.py
+```
+
+Checkpoints will be saved to `checkpoints/food_detector/`.
+
+**Sample Output (Inference):**
 
 ```
 ============================================================
@@ -225,13 +238,17 @@ graph TD
 
 ## 📊 Data Sources
 
+> ⚠️ **Note:** Due to GitHub's file size limits, the actual image datasets are **NOT** included in this repository. 
+> 
+> 🔗 **[Download the AI-Generated Fake Food Dataset here (Kaggle / Google Drive)]** *(Link to be added)*
+
 | Dataset | Source | Images | Cuisine Coverage |
 |---------|--------|--------|-----------------|
 | **Food-101** | Kaggle (ETH Zurich) | ~101,000 | Western, International |
 | **Indian Food Dataset** | Kaggle | ~4,000 | Indian (biryani, paneer, etc.) |
 | **Food Image Dataset** | Kaggle (UECFOOD256 + AIcrowd) | ~86,000 | Japanese, Mixed |
-| **AI-Generated** | RealVisXL V4.0 (local) | ~2,000 | Multi-cuisine |
-| **AI-Inpainted Fraud** | SDXL Inpainting (local) | ~550 | Multi-cuisine |
+| **AI-Generated** | *See link above* | ~2,000 | Multi-cuisine |
+| **AI-Inpainted Fraud** | *See link above* | ~550 | Multi-cuisine |
 
 **Total Real Images:** ~191,000+ &nbsp;|&nbsp; **Sampled for Training:** 5,000 (balanced prototype)
 
@@ -272,6 +289,53 @@ graph TD
 
 ---
 
+## 📈 Training Results
+
+```mermaid
+flowchart TD
+    subgraph Dataset["📦 Dataset (7,068 images)"]
+        T["Train — 4,947"]
+        V["Val — 1,060"]
+        TS["Test — 1,061"]
+    end
+
+    subgraph Journey["🏋️ Training Journey (20 Epochs · RTX 5070 Ti)"]
+        E1["Epoch 1\nVal Acc: 90.22%\nFPR: 4.44%"]
+        E7["Epoch 7\nVal Acc: 99.53%\nFPR: 1.11%"]
+        E18["⭐ Epoch 18 — Best\nVal Acc: 99.91%\nFPR: 1.11%"]
+    end
+
+    subgraph Calibration["🎯 Threshold Calibration"]
+        TH["Optimal Threshold: 0.50\nFPR on Val: 1.11%\nTarget met: ≤ 5% ✓"]
+    end
+
+    subgraph TestResults["✅ Test Set Results"]
+        direction LR
+        ACC["Accuracy\n99.81%"]
+        FPR["False Positive Rate\n0.00% 🎯"]
+    end
+
+    subgraph CM["🔢 Confusion Matrix"]
+        R["Real\n90/90 ✓ (0 wrong)"]
+        P["Perfect AI\n119/120 ✓"]
+        C["Compressed AI\n101/101 ✓ (perfect)"]
+        E["Edited AI\n749/750 ✓"]
+    end
+
+    Dataset --> Journey
+    E1 --> E7 --> E18
+    E18 --> Calibration
+    Calibration --> TestResults
+    TestResults --> CM
+
+    style E18 fill:#00c853,stroke:#00c853,color:#fff
+    style FPR fill:#00c853,stroke:#00c853,color:#fff
+    style ACC fill:#0096ff,stroke:#0096ff,color:#fff
+    style TH  fill:#1a1a2e,stroke:#00c853,color:#fff
+```
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Real food data collection (3 Kaggle datasets, ~191K images)
@@ -279,12 +343,13 @@ graph TD
 - [x] Fraud inpainting pipeline (SDXL Inpainting)
 - [x] Data processing & 4-class organization
 - [x] Training script with AMP and threshold calibration
-- [ ] Model training & hyperparameter tuning
-- [ ] Threshold calibration for ≤5% FPR
-- [ ] Evaluation (confusion matrix, per-class metrics)
-- [ ] Grad-CAM explainability visualization
-- [ ] Dual-stream model (RGB + FFT frequency analysis)
-- [ ] REST API deployment (FastAPI)
+- [x] DGX Kubernetes Training Pipeline Setup (PVC, MIG GPU)
+- [x] Executed model training on DGX Server
+- [x] Threshold calibration for ≤5% FPR
+- [x] Evaluation (confusion matrix, per-class metrics)
+- [ ] Grad-CAM explainability visualization (Planned)
+- [ ] Dual-stream model (RGB + FFT frequency analysis) (Planned)
+- [ ] REST API deployment (FastAPI) (Planned)
 
 ---
 

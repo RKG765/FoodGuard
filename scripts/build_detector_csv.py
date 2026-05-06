@@ -54,6 +54,16 @@ NEW_AI_CLASS_MAP = {
     "class4_edited_real": ("SDXL-AI", "edited"),  # -> label 2 (manipulated)
 }
 
+# Multi-model diversity dirs (different architectures = different fingerprints)
+# All are label 1 (ai_generated) — forensic diversity is critical for real-world
+# detection so the model doesn't just learn RealVisXL artifacts.
+DIVERSITY_AI_DIRS = {
+    "flux_schnell":     ("PixArt-Sigma-AI", "perfect"),   # DiT architecture
+    "kandinsky3":       ("Kandinsky-AI",    "perfect"),   # CLIP-Prior + UNet
+    "sdxl_turbo":       ("SDXL-Turbo-AI",   "perfect"),   # Distilled SDXL
+    "stable_cascade":   ("Stable-Cascade-AI", "perfect"), # Würstchen 3-stage
+}
+
 
 def collect_real_images() -> list:
     """Collect all real image paths with source names."""
@@ -117,6 +127,31 @@ def collect_new_ai_images() -> tuple:
     return ai_rows, manip_rows
 
 
+def collect_diversity_ai_images() -> list:
+    """Collect multi-model diversity AI images (PixArt, Kandinsky, SDXL-Turbo, etc).
+
+    All go to label 1 (ai_generated) — these add different model fingerprints
+    so the detector generalizes beyond RealVisXL artifacts.
+
+    Returns:
+        List of (file_path, source, subtype) tuples.
+    """
+    rows = []
+    for dir_name, (source, subtype) in DIVERSITY_AI_DIRS.items():
+        d = DATA_ROOT / "ai_generated" / dir_name
+        if not d.exists():
+            continue
+        count = 0
+        for f in sorted(d.iterdir()):
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
+                rel = str(f.relative_to(DATA_ROOT)).replace("\\", "/")
+                rows.append((rel, source, subtype))
+                count += 1
+        if count > 0:
+            print(f"  [OK] {dir_name} ({source}): {count} images")
+    return rows
+
+
 def build_csv(real_count: int = 5000, seed: int = 42):
     """Build the balanced dataset_index.csv."""
     print("=" * 60)
@@ -138,12 +173,17 @@ def build_csv(real_count: int = 5000, seed: int = 42):
         print(f"  Using all: {len(all_real)} images")
 
     # --- Collect AI images ---
-    print("\n[2/3] Collecting AI-generated images...")
+    print("\n[2/4] Collecting AI-generated images (RealVisXL pipeline)...")
     old_ai = collect_old_ai_images()
     new_ai, new_manip = collect_new_ai_images()
 
+    # --- Collect diversity AI images ---
+    print("\n[3/4] Collecting multi-model diversity AI images...")
+    diversity_ai = collect_diversity_ai_images()
+    print(f"  Total diversity AI: {len(diversity_ai)} images")
+
     # --- Build CSV rows ---
-    print("\n[3/3] Writing dataset_index.csv...")
+    print("\n[4/4] Writing dataset_index.csv...")
 
     csv_path = DATA_ROOT / "dataset_index.csv"
     header = ["file_path", "label", "source", "subtype"]
@@ -159,6 +199,10 @@ def build_csv(real_count: int = 5000, seed: int = 42):
 
     # Class 1: AI-Generated -- new pipeline classes 1-3
     for rel_path, source, subtype in new_ai:
+        rows.append([rel_path, 1, source, subtype])
+
+    # Class 1: AI-Generated -- diversity models (PixArt, Kandinsky, etc.)
+    for rel_path, source, subtype in diversity_ai:
         rows.append([rel_path, 1, source, subtype])
 
     # Class 2: Manipulated -- new pipeline class 4
@@ -183,6 +227,12 @@ def build_csv(real_count: int = 5000, seed: int = 42):
         st = row[3]
         subtype_counts[st] = subtype_counts.get(st, 0) + 1
 
+    # Source breakdown
+    source_counts = {}
+    for row in rows:
+        src = row[2]
+        source_counts[src] = source_counts.get(src, 0) + 1
+
     print(f"\n{'=' * 60}")
     print(f"DATASET CSV BUILT: {csv_path}")
     print(f"  Total: {len(rows)} rows")
@@ -190,13 +240,16 @@ def build_csv(real_count: int = 5000, seed: int = 42):
     print(f"  Class 1 (AI-Generated):   {label_counts[1]}")
     print(f"  Class 2 (Manipulated):    {label_counts[2]}")
     print(f"\n  Subtypes: {subtype_counts}")
+    print(f"\n  Sources:")
+    for src, cnt in sorted(source_counts.items()):
+        print(f"    {src}: {cnt}")
     print(f"{'=' * 60}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build detector dataset CSV")
-    parser.add_argument("--real-count", type=int, default=5000,
-                        help="Number of real images to sample (default: 5000)")
+    parser.add_argument("--real-count", type=int, default=12000,
+                        help="Number of real images to sample (default: 12000)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
     args = parser.parse_args()
