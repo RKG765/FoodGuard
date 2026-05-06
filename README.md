@@ -2,6 +2,9 @@
   <h1 align="center">🛡️ FoodGuard</h1>
   <p align="center"><b>AI-Powered Food Fraud Detection System</b></p>
   <p align="center">
+    <a href="REPORT.md">📄 <b>Read the Full Technical Report</b></a>
+  </p>
+  <p align="center">
     Detect AI-generated, compressed, and tampered food images using deep learning forensics.
   </p>
 </p>
