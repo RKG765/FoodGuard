@@ -1,0 +1,22 @@
+# Ignore everything by default
+*
+
+# Required application files
+!app.py
+!inference.py
+!requirements.txt
+!README.md
+!dataset_index_new.csv
+
+# Required directories
+!config/
+!config/**
+
+!src/
+!src/**
+
+!checkpoints/
+!checkpoints/**
+
+!results/
+!results/**
