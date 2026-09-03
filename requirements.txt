@@ -1,8 +1,10 @@
 # Food Detection System Requirements
-
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.0.1+cpu
+torchvision==0.15.2+cpu
 # Core
-torch>=2.0.0
-torchvision>=0.15.0
+#torch>=2.0.0
+#torchvision>=0.15.0
 Pillow>=9.0.0
 numpy>=1.23.0
 streamlit>=1.40.0
